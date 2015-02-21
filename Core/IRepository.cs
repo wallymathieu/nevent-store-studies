@@ -4,6 +4,8 @@ namespace SomeBasicNEventStoreApp.Core
 {
 	public interface IRepository
 	{
+		bool Any { get; }
+
 		Customer GetCustomer(int v);
 		Product GetProduct(int v);
 		IEnumerable<Customer> QueryOverCustomers();

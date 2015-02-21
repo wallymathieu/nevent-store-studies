@@ -18,7 +18,7 @@ namespace SomeBasicNEventStoreApp.Tests
 	public class CustomerDataTests
 	{
 		private IStoreEvents _engine;
-		private Repository _repository;
+		private IRepository _repository;
 
 		[Test]
 		public void CanGetCustomerById()
@@ -46,29 +46,27 @@ namespace SomeBasicNEventStoreApp.Tests
 		[TestFixtureSetUp]
 		public void TestFixtureSetup()
 		{
+			var testAdapter = new HardCodedIoc();
+			_repository = testAdapter._repository;
 			using (var bus = BusSetup.StartWith<Conservative>()
 				   .Apply<FlexibleSubscribeAdapter>(a =>
 				   {
 					   a.ByInterface(typeof(ICommandHandler<>));
 				   })
+				   //.Apply<IoCSupport>(s => s.SetAdapter(testAdapter).SetHandlerInterface(typeof(ICommandHandler<>)))
 				   .Construct())
 			{
-
+				foreach (var item in testAdapter.GetAllInstances(typeof(ICommandHandler<>))) { bus.Subscribe(item); }
+				//bus.Subscribe()
 				_engine = Wireup.Init().UsingInMemoryPersistence().Build();
 
 				var pollingClient = new PollingClient(_engine.Advanced);
 				using (var _commitObserver = pollingClient.ObserveFrom(null))
 				{
 					var hook = new PollingHook(_commitObserver);
-					_repository = new Repository();
-
-					bus.Subscribe(new AddCustomerCommandHandler(_repository));
-					bus.Subscribe(new AddOrderCommandHandler(_repository));
-					bus.Subscribe(new AddProductCommandHandler(_repository));
-
 					_commitObserver.Subscribe(new BusDispatcher(bus));
 
-					var s= _commitObserver.Start();
+					var s = _commitObserver.Start();
 
 					XmlImport.Parse(XDocument.Load(Path.Combine("TestData", "TestData.xml")), new[] { typeof(Customer), typeof(Order), typeof(Product) },
 									(type, obj) =>
@@ -102,7 +100,8 @@ namespace SomeBasicNEventStoreApp.Tests
 											}
 										}
 									}, "http://tempuri.org/Database.xsd");
-					while (!_repository.Any)
+					int count = 150;
+					while (!_repository.Any && count-- > 0)
 					{
 						Task.Delay(100).Wait();
 					}
